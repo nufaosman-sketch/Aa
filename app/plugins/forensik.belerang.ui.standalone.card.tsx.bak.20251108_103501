@@ -1,0 +1,108 @@
+import React, { useMemo, useState } from "react";
+import { ScrollView, View, Text, TextInput, TouchableOpacity } from "react-native";
+
+/** UI – Bab 7 Asal (1:1, tanpa mod 54) */
+const ABJAD: { [k: string]: number } = {
+  "ا":1,"ب":2,"ج":3,"د":4,"ه":5,"و":6,"ز":7,"ح":8,"ط":9,
+  "ي":10,"ك":20,"ل":30,"م":40,"ن":50,"س":60,"ع":70,"ف":80,"ص":90,
+  "ق":100,"ر":200,"ش":300,"ت":400,"ث":500,"خ":600,"ذ":700,"ض":800,"ظ":900,"غ":1000,
+  "أ":1,"إ":1,"آ":1,"ة":5,"ى":10,"ؤ":6,"ئ":10,"لا":31
+};
+const DAY_PLANET = [
+  { day:"الأحد",   planet:"الشمس ☉",  note:"نار إيجابي/مجد" },
+  { day:"الاثنين", planet:"القمر ☽",  note:"لين/سقيا/قبول" },
+  { day:"الثلاثاء",planet:"المريخ ♂", note:"طرد/دفع/حماية" },
+  { day:"الأربعاء",planet:"عطارد ☿",  note:"فكر/علم/حيلة" },
+  { day:"الخميس",  planet:"المشتري ♃", note:"سعة/نماء" },
+  { day:"الجمعة",  planet:"الزهرة ♀",  note:"محبة/أُلفة" },
+  { day:"السبت",   planet:"زحل ♄",    note:"ثقل/تحصين" },
+];
+const MEDIA_BY_ELEMENT: { [k: string]: { media: string[], action: string } } = {
+  "نار":  { media:["لوح","شقف","فتيلة","بيضة","قارورة"], action:"حرق/تسخين" },
+  "هواء": { media:["معلّق في الهواء","يُحمل/يُرفع"], action:"تعليق/حمل" },
+  "ماء":  { media:["يُسقى بالماء","يُدفن بعد السقي","يُرمى في الماء"], action:"سقي/دفن/طرح" },
+  "تراب": { media:["يُدفن في التراب","في قبر","تحت قناة الماء","في مفرق الطريق"], action:"دفن" }
+};
+
+function sumAbjad(raw: string){
+  const s = raw.replace(/\s+/g,"");
+  let total=0; const chars:string[]=[];
+  for(let i=0;i<s.length;i++){
+    if(i+1<s.length && s[i]==="ل" && s[i+1]==="ا"){ total+=31; chars.push("لا"); i++; continue; }
+    const ch=s[i]; total += ABJAD[ch] || 0; chars.push(ch);
+  }
+  return { total, chars };
+}
+function dominantElement(chars:string[]):"نار"|"تراب"|"هواء"|"ماء"{
+  const vals = chars.map(c=>ABJAD[c]||0);
+  const top = Math.max(0, ...vals);
+  if(top>=400) return "نار";
+  if(top>=100) return "تراب";
+  if(top>=40)  return "هواء";
+  return "ماء";
+}
+function bastInfo(len:number){ const muz=len%2===0; return {label:muz?"مزدوج":"مفرد",times:muz?4:5,pattern:muz?"رباعية":"خماسية"}; }
+
+export default function ForensikBelerangUIStandalone(){
+  const [name,setName]=useState("علي تقي الدين");
+  const [purpose,setPurpose]=useState<"جلب/خير/صحة"|"طرد/شر/سقم">("جلب/خير/صحة");
+  const [day,setDay]=useState(DAY_PLANET[0].day);
+  const [niat,setNiat]=useState<"خير"|"شر">("خير");
+
+  const R = useMemo(()=>{
+    const { total, chars } = sumAbjad(name);
+    const element = dominantElement(chars);
+    const bast = bastInfo(chars.length);
+    const mizan = purpose==="جلب/خير/صحة" ? "ميزان الحلب" : "ميزان الطرد";
+    const media = MEDIA_BY_ELEMENT[element];
+    const planet = DAY_PLANET.find(d=>d.day===day) || DAY_PLANET[0];
+    const bukhur = niat==="خير" ? "طيب (رائحة طيبة)" : "حاد/حديث";
+    return { total, len:chars.length, element, bast, mizan, media, planet, bukhur };
+  },[name,purpose,day,niat]);
+
+  return (
+    <ScrollView contentContainerStyle={{padding:16}}>
+      <Text style={{fontSize:20,fontWeight:"700",marginBottom:12}}>بطاقة الباب السابع – التصريف بالحروف (أصلي 1:1)</Text>
+      <View style={{marginBottom:12}}>
+        <Text>الاسم:</Text>
+        <TextInput value={name} onChangeText={setName} placeholder="اكتب الاسم بالعربية"
+          style={{borderWidth:1,borderColor:"#888",borderRadius:8,padding:10}}/>
+      </View>
+      <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        {(["جلب/خير/صحة","طرد/شر/سقم"] as const).map(p=>(
+          <TouchableOpacity key={p} onPress={()=>setPurpose(p)}
+            style={{paddingVertical:8,paddingHorizontal:12,borderRadius:8,borderWidth:1,borderColor:purpose===p?"#000":"#aaa",backgroundColor:purpose===p?"#eee":"#fff"}}>
+            <Text>{p}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{flexDirection:"row",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        {DAY_PLANET.map(d=>(
+          <TouchableOpacity key={d.day} onPress={()=>setDay(d.day)}
+            style={{paddingVertical:8,paddingHorizontal:12,borderRadius:8,borderWidth:1,borderColor:day===d.day?"#000":"#aaa",backgroundColor:day===d.day?"#eee":"#fff"}}>
+            <Text>{d.day}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{flexDirection:"row",gap:8,marginBottom:16}}>
+        {(["خير","شر"] as const).map(v=>(
+          <TouchableOpacity key={v} onPress={()=>setNiat(v)}
+            style={{paddingVertical:8,paddingHorizontal:12,borderRadius:8,borderWidth:1,borderColor:niat===v?"#000":"#aaa",backgroundColor:niat===v?"#eee":"#fff"}}>
+            <Text>{v}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={{borderWidth:1,borderColor:"#000",borderRadius:12,padding:12,gap:6}}>
+        <Text style={{fontWeight:"700"}}>النتيجة:</Text>
+        <Text>عدد الحروف: {R.len} — {R.bast.label} → البسط {R.bast.times} مرّات ({R.bast.pattern})</Text>
+        <Text>مجموع أبجد: {R.total}</Text>
+        <Text>العنصر الغالب: {R.element}</Text>
+        <Text>الميزان: {R.mizan}</Text>
+        <Text>صاحب اليوم: {R.planet.day} — {R.planet.planet} ({R.planet.note})</Text>
+        <Text>البخور: {R.bukhur}</Text>
+        <Text>الوسيط/الأداة ({R.element}): {R.media.media.join("، ")} — الفعل: {R.media.action}</Text>
+        <Text style={{opacity:0.7,marginTop:4}}>تنبيه: نقل حرفي لمعاني الباب السابع؛ لا mod 54.</Text>
+      </View>
+    </ScrollView>
+  );
+}

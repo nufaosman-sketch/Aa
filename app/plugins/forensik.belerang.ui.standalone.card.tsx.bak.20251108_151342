@@ -1,0 +1,156 @@
+// app/plugins/forensik.belerang.ui.standalone.card.tsx
+// Bab 7 — Fokus Nama (dwibahasa Melayu + Arab) semua kad collapsed
+import React, { useMemo, useState } from "react";
+import { ScrollView, View, Text, TextInput, StyleSheet } from "react-native";
+import Accordion from "../components/Accordion";
+
+/* Abjad Kabir */
+const ABJAD: Record<string, number> = {
+  "ا":1,"ب":2,"ج":3,"د":4,"ه":5,"و":6,"ز":7,"ح":8,"ط":9,
+  "ي":10,"ك":20,"ل":30,"م":40,"ن":50,"س":60,"ع":70,"ف":80,"ص":90,
+  "ق":100,"ر":200,"ش":300,"ت":400,"ث":500,"خ":600,"ذ":700,"ض":800,"ظ":900,"غ":1000,
+  "أ":1,"إ":1,"آ":1,"ة":5,"ى":10,"ؤ":6,"ئ":10,"لا":31
+};
+
+type PlanetKey = "زحل"|"المشتري"|"المريخ"|"الشمس"|"الزهرة"|"عطارد"|"القمر";
+const PLANET: Record<PlanetKey, any> = {
+  "زحل":   { huruf:["ا","ب","ج","د"], sifat:"بارد يابس | Sejuk dan kering", warna:"الأسود | Hitam", logam:"الرصاص | Plumbum", buruj:["الجدي | Capricorn","الدلو | Aquarius"], hari:"السبت | Sabtu", malak:"ميمون", nota:"Simbol keteguhan & ujian" },
+  "المشتري": { huruf:["ه","و","ز","ح"], sifat:"بارد وطلب | Sejuk & lembut", warna:"الأبيض | Putih", logam:"المقلمي | Timah", buruj:["القوس | Sagitarius"], hari:"الخميس | Khamis", malak:"إسرافيل", nota:"Planet hikmah & keberkatan" },
+  "المريخ": { huruf:["ط","ي","ك","ل"], sifat:"حار يابس | Panas & kering", warna:"الذهب | Kuning keemasan", logam:"ذهب | Emas", buruj:["الأسد | Asad (Singa)"], hari:"الأحد | Ahad", malak:"الجبهة", nota:"Simbol kekuatan & keberanian" },
+  "الشمس":  { huruf:["ه","م","ن","س","ع"], sifat:"حار رطب | Panas & lembap", warna:"الأصفر | Kuning", logam:"ذهب | Emas", buruj:["الأسد | Asad (Singa)"], hari:"الأحد | Ahad", malak:"الجبهة", nota:"Sumber cahaya & kepimpinan" },
+  "الزهرة": { huruf:["ف","ص","ق","ر"], sifat:"رطوبته كثيرة | Lembap berlebihan", warna:"الأخضر | Hijau", logam:"نحاس | Kuprum", buruj:["الميزان | Libra","الثور | Taurus"], hari:"الجمعة | Jumaat", malak:"الأسعد", nota:"Kasih sayang & keindahan" },
+  "عطارد": { huruf:["ش","ت","ث","خ"], sifat:"علويه | Udara ringan", warna:"الرمادي | Kelabu", logam:"الزئبق | Air raksa", buruj:["السنبلة | Virgo"], hari:"الأربعاء | Rabu", malak:"عزرائيل", nota:"Kecerdikan & komunikasi" },
+  "القمر":  { huruf:["ذ","ض","ظ","غ"], sifat:"بارد رطب | Sejuk & lembap", warna:"الفضي | Perak", logam:"الفضة | Perak", buruj:["السرطان | Kanser"], hari:"الاثنين | Isnin", malak:"ميكائيل", nota:"Rahmat & kelembutan" }
+};
+
+const AUTO = {
+  "Api":   { planets:["الشمس","المريخ"], daysAr:["الأحد","الثلاثاء"], daysMs:["Ahad","Selasa"] },
+  "Tanah": { planets:["زحل"],            daysAr:["السبت"],             daysMs:["Sabtu"] },
+  "Udara": { planets:["المشتري","عطارد"],daysAr:["الخميس","الأربعاء"], daysMs:["Khamis","Rabu"] },
+  "Air":   { planets:["القمر","الزهرة"], daysAr:["الاثنين","الجمعة"],  daysMs:["Isnin","Jumaat"] },
+} as const;
+
+const MEDIA = {
+  Api:   { ringkas:"Unsur api: tulis di papan/pecahan, sumbu, telur, atau botol.",
+           jalbah:["لوح/شقف (papan/pecahan tembikar)","فتيلة (sumbu)","بيضة (telur)","قارورة (botol)"],
+           tolak:["Seperti di atas, niat tolak/batal"] },
+  Udara: { ringkas:"Unsur udara: digantung/dibawa di udara.",
+           jalbah:["تعليق (gantung tinggi)","حمل (bawa di udara)"],
+           tolak:["Seperti di atas, niat tolak/batal"] },
+  Air:   { ringkas:"Unsur air: larut/siram/campak ke air.",
+           jalbah:["Larutkan dalam air & disiram","Campak ke air mengalir"],
+           tolak:["Guna air yang sama lalu dibuang (niat tolak)"] },
+  Tanah: { ringkas:"Unsur tanah: ditanam di bumi/tempat tertentu.",
+           jalbah:["دفن (tanam) di tanah","Bawah ambang/tapak atau simpang jalan"],
+           tolak:["Seperti di atas, niat tolak/batal"] },
+};
+
+/* Util */
+function sumAbjad(raw:string){
+  const s=(raw||"").replace(/\s+/g,"");
+  let total=0; const chars:string[]=[];
+  for(let i=0;i<s.length;i++){
+    if(i+1<s.length && s[i]==="ل" && s[i+1]==="ا"){ total+=31; chars.push("لا"); i++; continue; }
+    const ch=s[i]; total+=ABJAD[ch]||0; chars.push(ch);
+  }
+  return { total, chars };
+}
+function unsurGhalib(chars:string[]):"Api"|"Tanah"|"Udara"|"Air"{
+  const vals=chars.map(c=>ABJAD[c]||0); const top=Math.max(0,...vals);
+  if(top>=400) return "Api"; if(top>=100) return "Tanah"; if(top>=40) return "Udara"; return "Air";
+}
+function planetDominanPertama(chars:string[]):PlanetKey|null{
+  const score:Record<PlanetKey,number>={"زحل":0,"المشتري":0,"المريخ":0,"الشمس":0,"الزهرة":0,"عطارد":0,"القمر":0};
+  for(const ch of chars)
+    (Object.keys(score) as PlanetKey[]).forEach(p=>PLANET[p].huruf.includes(ch)&&score[p]++);
+  const max=Math.max(...Object.values(score));
+  if(max<=0) return null;
+  return (Object.keys(score) as PlanetKey[]).find(p=>score[p]===max)||null;
+}
+
+/* UI */
+function Card(){
+  const [nama,setNama]=useState("مونير");
+  const R=useMemo(()=>{
+    const { total, chars }=sumAbjad(nama);
+    const unsur=unsurGhalib(chars);
+    const auto=AUTO[unsur];
+    const dom=planetDominanPertama(chars);
+    const planetUtama=dom??auto.planets[0];
+    return {unsur,total,panjang:chars.length,planetUtama,hari:auto.daysMs[0],hariAr:auto.daysAr[0]};
+  },[nama]);
+
+  const kerja=MEDIA[R.unsur];
+  const P=PLANET[R.planetUtama];
+
+  return(
+  <ScrollView contentContainerStyle={{padding:12}}>
+    <Text style={st.h1}>Bab 7 — Fokus Nama</Text>
+    <Text style={st.sub}>Auto detect ikut nama Arab. Semua seksyen tertutup secara default.</Text>
+
+    <Accordion title="Nama" defaultOpen={false}>
+      <Text style={st.label}>Nama (huruf Arab):</Text>
+      <TextInput value={nama} onChangeText={setNama} style={st.input}/>
+    </Accordion>
+
+    <Accordion title="Keputusan" defaultOpen={false}>
+      <View style={st.card}>
+        <Text style={st.line}>Unsur ghalib: <Text style={st.hi}>{R.unsur}</Text></Text>
+        <Text style={st.line}>Hari utama: <Text style={st.hi}>{R.hari}</Text> <Text style={st.dim}>({R.hariAr})</Text></Text>
+        <Text style={st.line}>Planet utama: <Text style={st.hi}>{R.planetUtama}</Text></Text>
+        <Text style={st.dim}>Huruf={R.panjang} • Jumlah abjad={R.total}</Text>
+      </View>
+    </Accordion>
+
+    <Accordion title="Kerja Unsur (berdasar nama)" defaultOpen={false}>
+      <View style={st.card}>
+        <Text style={st.refTitle}>{R.unsur}</Text>
+        <Text style={st.refLine}>{kerja.ringkas}</Text>
+        <Text style={st.titleSmall}>Jalbah (جلب)</Text>
+        {kerja.jalbah.map((t,i)=><Text key={i} style={st.bullet}>• {t}</Text>)}
+        <Text style={st.titleSmall}>Tolak (دفع/ابطال/فسخ)</Text>
+        {kerja.tolak.map((t,i)=><Text key={i} style={st.bullet}>• {t}</Text>)}
+        <Text style={st.tip}>Waktu elok: selepas Subuh, ketika zawāl, selepas Asar & tengah malam — ikut hari utama.</Text>
+      </View>
+    </Accordion>
+
+    <Accordion title="Butiran Planet Utama (Arab + Melayu)" defaultOpen={false}>
+      <View style={st.card}>
+        <Text style={st.refTitle}>{R.planetUtama}</Text>
+        <Text style={st.refLine}>Huruf: <Text style={st.hi}>{P.huruf.join(" ، ")}</Text></Text>
+        <Text style={st.refLine}>Sifat: {P.sifat}</Text>
+        <Text style={st.refLine}>Logam: {P.logam}</Text>
+        <Text style={st.refLine}>Warna: {P.warna}</Text>
+        <Text style={st.refLine}>Buruj: {P.buruj.join(" ، ")}</Text>
+        <Text style={st.refLine}>Hari sesuai: {P.hari}</Text>
+        <Text style={st.refLine}>Malaikat/Roh Penjuru: {P.malak}</Text>
+        <Text style={st.refNote}>Nota: {P.nota}</Text>
+      </View>
+    </Accordion>
+  </ScrollView>);
+}
+
+const st=StyleSheet.create({
+  h1:{color:"#e8e6e3",fontSize:18,fontWeight:"900"},
+  sub:{color:"#9a9692",marginTop:4,marginBottom:8},
+  label:{color:"#e8e6e3",fontWeight:"800"},
+  input:{color:"#e8e6e3",borderWidth:1,borderColor:"#333",borderRadius:8,padding:10,marginTop:6},
+  card:{borderWidth:1,borderColor:"#333",borderRadius:12,padding:12,gap:6},
+  line:{color:"#e8e6e3",marginVertical:2},
+  hi:{color:"#7bd88f",fontWeight:"800"},
+  dim:{color:"#b3aca7"},
+  refTitle:{color:"#e8e6e3",fontWeight:"900",marginBottom:4},
+  refLine:{color:"#e8e6e3"},
+  refNote:{color:"#9a9692",fontStyle:"italic",marginTop:4},
+  bullet:{color:"#e8e6e3",marginLeft:6,marginTop:2},
+  titleSmall:{color:"#e8e6e3",fontWeight:"900",marginTop:8},
+  tip:{color:"#9a9692",marginTop:6,fontStyle:"italic"},
+});
+
+/* Adapter export */
+const ForensikBab7Standalone={
+  id:"forensik-bab7-standalone",
+  label:"Bab 7 — Fokus Nama",
+  render:Card,
+};
+export default ForensikBab7Standalone;

@@ -1,0 +1,152 @@
+// app/plugins/forensik.bab7.darjat.card.tsx
+// Bab 7 — Darjat al-Ism (ikut kitab 1–4/5) + Rujukan Darjat Asal Unsur (bukan ikut nama).
+// Kiraan Darjat al-Ism: jumlah Abjad Kabir (nama Arab) % 5; baki 0 dianggap 5.
+
+import React, { useMemo, useState } from "react";
+import { ScrollView, View, Text, TextInput, StyleSheet } from "react-native";
+import Accordion from "../components/Accordion";
+
+/* Nilai Abjad Kabir */
+const ABJAD: Record<string, number> = {
+  "ا":1,"ب":2,"ج":3,"د":4,"ه":5,"و":6,"ز":7,"ح":8,"ط":9,
+  "ي":10,"ك":20,"ل":30,"م":40,"ن":50,"س":60,"ع":70,"ف":80,"ص":90,
+  "ق":100,"ر":200,"ش":300,"ت":400,"ث":500,"خ":600,"ذ":700,"ض":800,"ظ":900,"غ":1000,
+  // Varian lazim
+  "أ":1,"إ":1,"آ":1,"ة":5,"ى":10,"ؤ":6,"ئ":10,"لا":31
+};
+
+/* Label darjat Arab */
+const DARJAT_AR = {1:"الدرجة الأولى",2:"الدرجة الثانية",3:"الدرجة الثالثة",4:"الدرجة الرابعة",5:"الدرجة الخامسة"} as const;
+
+/* Util asas */
+function jumlahAbjad(raw:string){
+  const s=(raw||"").replace(/\s+/g,"");
+  let total=0;
+  for(let i=0;i<s.length;i++){
+    if(i+1<s.length && s[i]==="ل" && s[i+1]==="ا"){ total+=31; i++; continue; }
+    total += ABJAD[s[i]] || 0;
+  }
+  return total;
+}
+function unsurGhalibRingkas(raw:string):"Api"|"Udara"|"Air"|"Tanah"{
+  const s=(raw||"").replace(/\s+/g,"");
+  let max=0;
+  for(const ch of s){ max=Math.max(max, ABJAD[ch]||0); }
+  if(max>=400) return "Api";
+  if(max>=100) return "Tanah";
+  if(max>=40)  return "Udara";
+  return "Air";
+}
+
+/* Rujukan Darjat Asal Unsur — hanya apa yang memang dinyatakan dalam petikan (tiada rekaan) */
+const RUJUKAN_DARJAT_ASAL = {
+  Api: [
+    { ar:"هواء النار — تارٌ مستوقد", ms:"Udara Api — “tār mustawqid”", info:"حروف=28 • عدد=3969" },
+    { ar:"نارٌ تأكل وتشرب",           ms:"Api yang makan & minum",     info:"حروف=66 • عدد=30"  },
+  ],
+  Udara: [
+    // Kitab nyatakan 3–5; nilai yang disebut sahaja dipaparkan
+    { ar:"هواء العشق والمحبة",         ms:"Udara kasih & cinta",         info:"حروف=66"  },
+    { ar:"جمع الطيور",                 ms:"Pengumpulan burung-burung",   info:"حروف=436" },
+    { ar:"هواء بارد مفسد",            ms:"Udara sejuk yang merosakkan", info:"عدد=500"  },
+  ],
+  Air: [
+    { ar:"الماء العذب الفرات",         ms:"Air tawar yang manis",         info:"عدد الحروف=94409" },
+    { ar:"الماء المرّ التين",          ms:"Air pahit yang keras",         info:"حروف=73"          },
+    { ar:"الماء الزُعاق",              ms:"Air masin yang kuat",          info:"حروف=41972"       },
+    { ar:"الماء الودق الذي لا طعم له", ms:"Air hujan tiada rasa",         info:"حروف=94"          },
+    { ar:"الماء الثقيل على الإنسان",   ms:"Air yang berat atas manusia",  info:"بسط=93"           },
+  ],
+  Tanah: [
+    { ar:"تراب الحبّ والزرع",          ms:"Tanah cinta & tanaman",        info:"بسط=2941 • أعداد=3124" },
+    { ar:"تراب المعادن",               ms:"Tanah logam & galian",         info:"أعداد=314"             },
+    { ar:"التراب المستعمل",            ms:"Tanah yang digunakan",         info:"بسط=118"               },
+    { ar:"تراب السِّباح الذي لا يطلع فيه نبات", ms:"Tanah tandus",        info:"بسط=19141"             },
+  ],
+} as const;
+
+function Card(){
+  const [nama,setNama]=useState("مونير");
+
+  const R = useMemo(()=>{
+    const jumlah = jumlahAbjad(nama);
+    const mod5   = jumlah % 5;
+    const darjat = mod5 === 0 ? 5 : mod5; // 1–4/5
+    const darjatAr = DARJAT_AR[darjat as 1|2|3|4|5];
+    const unsur = unsurGhalibRingkas(nama); // rujukan ringkas, tak ubah formula kitab lain
+    return { jumlah, mod5, darjat, darjatAr, unsur };
+  },[nama]);
+
+  return (
+    <ScrollView contentContainerStyle={{padding:14}}>
+      <Text style={st.h1}>Bab 7 — Darjat al-Ism (ikut nama)</Text>
+      <Text style={st.sub}>
+        Kiraan kitab: jumlah Abjad Kabir (huruf Arab) % 5 → 1–4; baki 0 = 5. 
+        Darjat ini mengikut nama, bukan darjat unsur asal.
+      </Text>
+
+      <Accordion title="Nama" defaultOpen={false}>
+        <Text style={st.label}>Nama (huruf Arab):</Text>
+        <TextInput value={nama} onChangeText={setNama} style={st.input}/>
+      </Accordion>
+
+      <Accordion title="Keputusan Darjat al-Ism (ikut nama)" defaultOpen={false}>
+        <View style={st.card}>
+          <Text style={st.row}>Jumlah Abjad: <Text style={st.hi}>{R.jumlah}</Text></Text>
+          <Text style={st.row}>Baki mod 5: <Text style={st.hi}>{R.mod5}</Text> <Text style={st.dim}>(0 → 5)</Text></Text>
+          <Text style={st.row}>Darjat: <Text style={st.hi}>Darjat {R.darjat}</Text> <Text style={st.dim}>— {R.darjatAr}</Text></Text>
+          <Text style={st.row}>Unsur ghalib (ringkas): <Text style={st.hi}>{R.unsur}</Text></Text>
+          <Text style={st.tipAr}>«تُجمع أعداد الحروف ثم يُطرح على خمسة؛ فإن بقي واحد فالأولى … وإن لم يبق شيء فهي الخامسة»</Text>
+        </View>
+      </Accordion>
+
+      <Accordion title="Rujukan — Darjat Asal Unsur (bukan ikut nama)" defaultOpen={false}>
+        <View style={st.refBlock}>
+          <Text style={st.refHead}>🔥 Api — 2 darjat (yang dinyatakan)</Text>
+          {RUJUKAN_DARJAT_ASAL.Api.map((x,i)=>(
+            <Text key={"a"+i} style={st.refLine}>• {x.ar} — {x.ms} <Text style={st.dim}>[{x.info}]</Text></Text>
+          ))}
+
+          <Text style={st.refHead}>💨 Udara — darjat 3–5 (yang dinyatakan)</Text>
+          {RUJUKAN_DARJAT_ASAL.Udara.map((x,i)=>(
+            <Text key={"u"+i} style={st.refLine}>• {x.ar} — {x.ms} <Text style={st.dim}>[{x.info}]</Text></Text>
+          ))}
+
+          <Text style={st.refHead}>💧 Air — 5 darjat (lengkap)</Text>
+          {RUJUKAN_DARJAT_ASAL.Air.map((x,i)=>(
+            <Text key={"w"+i} style={st.refLine}>• {x.ar} — {x.ms} <Text style={st.dim}>[{x.info}]</Text></Text>
+          ))}
+
+          <Text style={st.refHead}>🌍 Tanah — 4 darjat (lengkap)</Text>
+          {RUJUKAN_DARJAT_ASAL.Tanah.map((x,i)=>(
+            <Text key={"t"+i} style={st.refLine}>• {x.ar} — {x.ms} <Text style={st.dim}>[{x.info}]</Text></Text>
+          ))}
+        </View>
+      </Accordion>
+    </ScrollView>
+  );
+}
+
+/* Gaya */
+const st = StyleSheet.create({
+  h1:{color:"#e8e6e3",fontSize:18,fontWeight:"900"},
+  sub:{color:"#9a9692",marginTop:4,marginBottom:8},
+  label:{color:"#e8e6e3",fontWeight:"800"},
+  input:{color:"#e8e6e3",borderWidth:1,borderColor:"#333",borderRadius:8,padding:10,marginTop:6},
+  card:{borderWidth:1,borderColor:"#333",borderRadius:12,padding:12,gap:6},
+  row:{color:"#e8e6e3",marginVertical:2},
+  hi:{color:"#7bd88f",fontWeight:"800"},
+  dim:{color:"#b3aca7"},
+  tipAr:{color:"#9a9692",marginTop:8,fontStyle:"italic"},
+  refBlock:{borderWidth:1,borderColor:"#333",borderRadius:12,padding:12,gap:6},
+  refHead:{color:"#e8e6e3",fontWeight:"900",marginTop:8,marginBottom:4},
+  refLine:{color:"#e8e6e3",marginLeft:6,marginVertical:2},
+});
+
+/* Adapter (ikut gaya standard projek) */
+const ForensikBab7DarjatIsm = {
+  id: "forensik-bab7-darjat-ism",
+  label: "Bab 7 — Darjat al-Ism (mod 5)",
+  render: Card,
+};
+export default ForensikBab7DarjatIsm;

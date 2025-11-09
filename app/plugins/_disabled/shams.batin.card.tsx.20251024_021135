@@ -1,0 +1,42 @@
+import React from "react";
+import { View, Text } from "react-native";
+import Accordion from "../components/Accordion";
+import type { ExplainAdapter, Input } from "../adapters/types";
+import { safeBaki30 } from "./helpers";
+
+const Box: React.FC<{children:any}> = ({children}) => (
+  <View style={{backgroundColor:"#14090b", borderRadius:12, padding:10, marginBottom:10, borderWidth:1, borderColor:"#2a0e14"}}>
+    {children}
+  </View>
+);
+const L: React.FC<{k:string; v:string|number}> = ({k,v}) => (
+  <View style={{flexDirection:"row", justifyContent:"space-between", marginBottom:6}}>
+    <Text style={{color:"#e8e6e3", opacity:.8}}>{k}</Text>
+    <Text style={{color:"#ffb84d", fontWeight:"700"}}>{String(v)}</Text>
+  </View>
+);
+
+const ShamsBatinCard: ExplainAdapter = {
+  id: "shams-batin",
+  label: "Penjelasan — Shams al-Būnī (Batin/Rohani)",
+  render(input: Input) {
+    const aD = input.aDiri||0;
+    const aK = input.aKeluarga||0;
+    const bD = safeBaki30(input.baki30, aD);
+    const bK = safeBaki30(input.baki30, aK);
+    return (
+      <Accordion title="Penjelasan — Shams al-Būnī (Batin/Rohani)">
+        <Box>
+          <L k="Jumlah Diri" v={aD} />
+          <L k="Jumlah Keluarga" v={aK} />
+          <L k="Baki 30 (Diri)" v={bD} />
+          <L k="Baki 30 (Keluarga)" v={bK} />
+          <Text style={{color:"#c9c6c2", opacity:.7, marginTop:6}}>
+            Ringkasan batin memfokus hati & bulan; abjad dipapar sebagai rujukan.
+          </Text>
+        </Box>
+      </Accordion>
+    );
+  }
+};
+export default ShamsBatinCard;

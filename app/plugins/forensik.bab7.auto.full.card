@@ -1,0 +1,248 @@
+// ===============================================
+// Forensik Bab 7 — Fokus Nama (Auto, panjang, ikut kitab 1:1)
+// Named export   : ForensikBab7Card
+// Default export : ForensikBab7Adapter { key,title,component }
+// ===============================================
+
+import React, { useMemo, useState } from "react";
+import { View, Text, TextInput, ScrollView } from "react-native";
+import Accordion from "../components/Accordion";
+
+// ---------- Util asas ----------
+
+// Abjad Kabir (nilai klasik)
+const ABJAD: Record<string, number> = {
+  "ا":1,"ب":2,"ج":3,"د":4,"ه":5,"و":6,"ز":7,"ح":8,"ط":9,
+  "ي":10,"ك":20,"ل":30,"م":40,"ن":50,"س":60,"ع":70,"ف":80,"ص":90,
+  "ق":100,"ر":200,"ش":300,"ت":400,"ث":500,"خ":600,"ذ":700,"ض":800,"ظ":900,"غ":1000
+};
+
+// Normalisasi huruf (ya/ya maqsurah/hamzah atas ya → ي, alif maqsura ى → ي, ta marbuta ة → ه)
+function normArab(input: string): string {
+  return (input||"")
+    .replace(/[\u064A\u0649]/g,"ي")
+    .replace(/\u0629/g,"ه")
+    .replace(/\u0623|\u0625|\u0622/g,"ا")
+    .replace(/\s+/g,"")
+    .trim();
+}
+
+// Kira jumlah abjad & taburan huruf
+function kiraNama(namaArab: string){
+  const chars = normArab(namaArab).split("");
+  let jumlah = 0;
+  const kekerapan: Record<string, number> = {};
+  for(const ch of chars){
+    const v = ABJAD[ch] || 0;
+    jumlah += v;
+    kekerapan[ch] = (kekerapan[ch]||0)+1;
+  }
+  return { chars, jumlah, kekerapan };
+}
+
+// ---------- Jadual 7 Planet (huruf, sifat, dll) — ikut jadual manuskrip ----------
+// Rujukan: ZUHAL, MUSYTARI, MARRIKH, SHAMS, ZUHRAH, UTARID, QAMAR
+type PlanetKey = "زحل"|"المشتري"|"المريخ"|"الشمس"|"الزهرة"|"عطارد"|"القمر";
+
+const PLANETS: Record<PlanetKey, {
+  huruf: string[],    // kumpulan huruf planet
+  sifat: string,
+  warna: string,
+  logam: string,
+  buruj: string,
+  hari: string,
+  malaikat: string,
+  ruhaniyah: string,  // untuk Qamar
+}> = {
+  "زحل":   { huruf:["ا","ب","ج","د"], sifat:"بارد يابس", warna:"الأسود", logam:"الرصاص", buruj:"الجدي، الدلو", hari:"السبت", malaikat:"ميمون", ruhaniyah:"الحوت" },
+  "المشتري":{ huruf:["ه","و","ز","ح"], sifat:"بارد وطلب", warna:"الأبيض", logام:"المقلمي", buruj:"الجبهة", hari:"الخميس", malaikat:"إسرافيل", ruhaniyah:"" },
+  "المريخ": { huruf:["ط","ي","ك","ل"], sifat:"حار يابس", warna:"الذهب", logام:"ذهب", buruj:"الأسد", hari:"الأحد", malaikat:"الجبهة", ruhaniyah:"" },
+  "الشمس": { huruf:["ه","م","ن","س","ع"], sifat:"حار رطب", warna:"—", logام:"—", buruj:"—", hari:"الأحد", malaikat:"—", ruhaniyah:"" },
+  "الزهرة": { huruf:["ف","ص","ق","ر"], sifat:"—", warna:"—", logام:"—", buruj:"الميزان/الثور", hari:"الجمعة", malaikat:"—", ruhaniyah:"" },
+  "عطارد": { huruf:["ش","ت","ث","خ"], sifat:"—", warna:"—", logام:"الزئبق", buruj:"—", hari:"الأربعاء", malaikat:"عزرائيل", ruhaniyah:"" },
+  "القمر":  { huruf:["ذ","ض","ظ","غ"], sifat:"بارد رطب", warna:"—", logام:"—", buruj:"السرطان", hari:"الإثنين", malaikat:"ميكائيل", ruhaniyah:"الارجا" },
+};
+
+// Unsur 4 & hurufnya (berdasarkan keterangan bab & contoh huruf dominan)
+type UnsurKey = "Api"|"Udara"|"Air"|"Tanah";
+const UNSUR_HURUF: Record<UnsurKey, string[]> = {
+  // Dari teks contoh: udara = ب و ي ن ص ث
+  Udara: ["ب","و","ي","ن","ص","ث"],
+  // Air = ج ز ك س ر ق ط ظ
+  Air: ["ج","ز","ك","س","ر","ق","ط","ظ"],
+  // Tanah = د خ ع د خ خ (huruf berat/pekat) → gabung unik: د خ ع
+  Tanah: ["د","خ","ع"],
+  // Api: ikut kaedah “yang lebih tinggi (nilai besar) → Api”, serta kumpul huruf bernilai tinggi
+  Api: ["ق","غ","ظ","ض","ط"]
+};
+
+// Jalbah/Tolak mengikut UNSUR (ringkasan amali kitab)
+const AMAL: Record<UnsurKey, {
+  jalbah: string[], tolak: string[], ringkas: string
+}> = {
+  Api: {
+    jalbah: ["لوح/شقف (papan/pecahan tembikar/kaca)","فتيلة (sumbu)","بيضة (telur)","قارورة (botol)"],
+    tolak:  ["Seperti di atas, tetapi niat tolak/batal"],
+    ringkas:"Kerja unsur api: tulis di papan/pecahan, sumbu, telur, atau botol."
+  },
+  Udara: {
+    jalbah: ["Gantung/ikat tinggi (تَعليق)","Bawa/arahkan di udara"],
+    tolak:  ["Seperti di atas, tetapi niat tolak"],
+    ringkas:"Kerja unsur udara: digantung/dibawa di udara."
+  },
+  Air: {
+    jalbah: ["Larutkan dalam air & disiram","Campak ke air mengalir"],
+    tolak:  ["Seperti di atas, tetapi niat tolak"],
+    ringkas:"Kerja unsur air: disiram/campak ke air."
+  },
+  Tanah: {
+    jalbah: ["Tanam (دفن) di tanah","Bawah ambang/tapak/di simpang jalan","Di tanah (tanam)"],
+    tolak:  ["Seperti di atas, niat tolak/batal"],
+    ringkas:"Kerja unsur tanah: ditanam di bumi/tempat tertentu."
+  },
+};
+
+// Tentukan unsur “ghalib” ikut nama
+// Kaedah:
+// 1) Kira taburan huruf ikut set UNSUR_HURUF
+// 2) Jika seri, guna "nilai tertinggi abjad" → priority Api > Tanah > Udara > Air (rujukan teks)
+function unsurDominan(chars: string[]){
+  const count: Record<UnsurKey, number> = {Api:0, Udara:0, Air:0, Tanah:0};
+  for(const ch of chars){
+    for(const u of Object.keys(UNSUR_HURUF) as UnsurKey[]){
+      if(UNSUR_HURUF[u].includes(ch)) count[u]++;
+    }
+  }
+  // dominan by count
+  let dom: UnsurKey = "Api";
+  let max = -1;
+  for(const u of Object.keys(count) as UnsurKey[]){
+    if(count[u]>max){ max=count[u]; dom=u; }
+  }
+  // tie-break: nilai tertinggi → cenderung Api>Tanah>Udara>Air
+  if(Object.values(count).filter(v=>v===max).length>1){
+    const priority: UnsurKey[] = ["Api","Tanah","Udara","Air"];
+    for(const u of priority){ if(count[u]===max){ dom=u; break; } }
+  }
+  return { dom, count };
+}
+
+// Cadang planet utama berdasarkan huruf paling kerap jatuh pada kumpulan planet
+function planetDominan(chars: string[]): PlanetKey{
+  const tally: Record<PlanetKey, number> = {
+    "زحل":0,"المشتري":0,"المريخ":0,"الشمس":0,"الزهرة":0,"عطارد":0,"القمر":0
+  };
+  for(const ch of chars){
+    (Object.keys(PLANETS) as PlanetKey[]).forEach(pk=>{
+      if(PLANETS[pk].huruf.includes(ch)) tally[pk]++;
+    });
+  }
+  // pilih yang paling banyak; tie → ZUHAL→JUPITER→MARRIKH→SHAMS→ZUHRAH→UTARID→QAMAR (susunan falak klasik)
+  const order: PlanetKey[] = ["زحل","المشتري","المريخ","الشمس","الزهرة","عطارد","القمر"];
+  let best=order[0];
+  for(const k of order){ if(tally[k]>tally[best]) best=k; }
+  return best;
+}
+
+// Hari utama = hari planet dominan (jadual)
+function hariPlanet(pk: PlanetKey){ return PLANETS[pk].hari || "—"; }
+
+// ---------- UI ----------
+
+const Box: React.FC<{title:string, children:React.ReactNode}> = ({title, children}) => (
+  <View style={{borderWidth:1,borderColor:"#3b0a4a",borderRadius:12,marginVertical:10,padding:12,backgroundColor:"#140018"}}>
+    <Text style={{color:"#E0D7FF",fontWeight:"700",marginBottom:6}}>{title}</Text>
+    {children}
+  </View>
+);
+
+export function ForensikBab7Card(){
+  const [nama, setNama] = useState<string>("علي_تقي_الدين".replace(/_/g," "));
+  const info = useMemo(()=>kiraNama(nama),[nama]);
+  const { dom } = useMemo(()=>unsurDominan(info.chars),[info]);
+  const planetKey = useMemo(()=>planetDominan(info.chars),[info]);
+  const hariUtama = useMemo(()=>hariPlanet(planetKey),[planetKey]);
+
+  const amal = AMAL[dom];
+
+  return (
+    <ScrollView style={{flex:1, backgroundColor:"#0b0010", padding:14}}>
+      <View style={{borderRadius:14, padding:12, backgroundColor:"#24003a", marginBottom:12}}>
+        <Text style={{color:"#F3E8FF", textAlign:"center", fontWeight:"800"}}>Forensik Purba — Bab 7 (Auto)</Text>
+        <Text style={{color:"#CBB6FF", textAlign:"center", fontSize:12}}>Auto-cadang unsur & planet ikut huruf nama (kitab 1:1). Paparan fokus kepada hasil berkaitan sahaja.</Text>
+      </View>
+
+      <Accordion title="→ Nama">
+        <Text style={{color:"#BFAAFF", marginBottom:6}}>Nama (huruf Arab):</Text>
+        <TextInput
+          value={nama}
+          onChangeText={setNama}
+          placeholder="اكتب الاسم هنا"
+          placeholderTextColor="#775a99"
+          style={{borderWidth:1,borderColor:"#3b0a4a",borderRadius:10,color:"#FFF",padding:10}}
+        />
+      </Accordion>
+
+      <Accordion title="→ Keputusan (Auto)">
+        <Text style={{color:"#A7FFB5"}}>Unsur ghalib: <Text style={{fontWeight:"700"}}>{dom}</Text></Text>
+        <Text style={{color:"#A7FFB5"}}>Hari utama: <Text style={{fontWeight:"700"}}>{hariUtama}</Text></Text>
+        <Text style={{color:"#A7FFB5"}}>Planet utama: <Text style={{fontWeight:"700"}}>{planetKey}</Text></Text>
+        <Text style={{color:"#94A3B8", marginTop:6, fontSize:12}}>
+          Ringkasan kiraan: huruf={info.chars.length} · jumlah abjad={info.jumlah}
+        </Text>
+      </Accordion>
+
+      <Accordion title="→ Kerja Unsur (ikut nama)">
+        <Box title={dom}>
+          <Text style={{color:"#E5E7EB", marginBottom:6}}>{amal.ringkas}</Text>
+          <Text style={{color:"#93C5FD", fontWeight:"700"}}>Jalbah (baik/rezeki/sihbah):</Text>
+          {amal.jalbah.map((s,i)=>(<Text key={"j"+i} style={{color:"#E2E8F0"}}>• {s}</Text>))}
+          <Text style={{color:"#FCA5A5", fontWeight:"700", marginTop:8}}>Tolak (bahaya/sakit/fitnah):</Text>
+          {amal.tolak.map((s,i)=>(<Text key={"t"+i} style={{color:"#FEE2E2"}}>• {s}</Text>))}
+          <Text style={{color:"#9CA3AF", fontSize:11, marginTop:8}}>
+            Waktu elok contoh: selepas Subuh, ketika zawal, selepas Asar & tengah malam — mengikut hari utama.
+          </Text>
+        </Box>
+      </Accordion>
+
+      <Accordion title="→ Butiran Planet Berkaitan (auto)">
+        <Box title={planetKey}>
+          <Text style={{color:"#E2E8F0"}}>Huruf: {PLANETS[planetKey].huruf.join(" ، ")}</Text>
+          <Text style={{color:"#E2E8F0"}}>Sifat: {PLANETS[planetKey].sifat}</Text>
+          <Text style={{color:"#E2E8F0"}}>Warna: {PLANETS[planetKey].warna}</Text>
+          <Text style={{color:"#E2E8F0"}}>Logam: {PLANETS[planetKey].logam}</Text>
+          <Text style={{color:"#E2E8F0"}}>Buruj: {PLANETS[planetKey].buruj}</Text>
+          <Text style={{color:"#E2E8F0"}}>Hari: {PLANETS[planetKey].hari}</Text>
+          {!!PLANETS[planetKey].malaikat && <Text style={{color:"#E2E8F0"}}>Malaikat/Roh: {PLANETS[planetKey].malaikat}</Text>}
+          {!!PLANETS[planetKey].ruhaniyah && <Text style={{color:"#E2E8F0"}}>Ruhaniyah: {PLANETS[planetKey].ruhaniyah}</Text>}
+        </Box>
+      </Accordion>
+
+      <Accordion title="→ Rujukan Jadual 7 Planet (penuh)">
+        {(Object.keys(PLANETS) as PlanetKey[]).map((k)=>(
+          <Box key={k} title={k}>
+            <Text style={{color:"#E2E8F0"}}>Huruf: {PLANETS[k].huruf.join(" ، ")}</Text>
+            <Text style={{color:"#E2E8F0"}}>Sifat: {PLANETS[k].sifat}</Text>
+            <Text style={{color:"#E2E8F0"}}>Warna: {PLANETS[k].warna}</Text>
+            <Text style={{color:"#E2E8F0"}}>Logam: {PLANETS[k].logam}</Text>
+            <Text style={{color:"#E2E8F0"}}>Buruj: {PLANETS[k].buruj}</Text>
+            <Text style={{color:"#E2E8F0"}}>Hari: {PLANETS[k].hari}</Text>
+            {!!PLANETS[k].malaikat && <Text style={{color:"#E2E8F0"}}>Malaikat/Roh: {PLANETS[k].malaikat}</Text>}
+            {!!PLANETS[k].ruhaniyah && <Text style={{color:"#E2E8F0"}}>Ruhانيyah: {PLANETS[k].ruhaniyah}</Text>}
+          </Box>
+        ))}
+      </Accordion>
+
+      <View style={{height:18}}/>
+    </ScrollView>
+  );
+}
+
+// ================= DEFAULT EXPORT: Adapter Object =================
+const ForensikBab7Adapter = {
+  key: "forensik_bab7",
+  title: "Bab 7 — Fokus Nama (Auto, Kitab 1:1)",
+  component: ForensikBab7Card,
+};
+
+export default ForensikBab7Adapter;

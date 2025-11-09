@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Forensik",
+    "slug": "forensik",
+    "scheme": "forensik",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/appicon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-router"
+    ],
+    "android": {
+      "package": "com.redsulphur.forensik",
+      "versionCode": 1,
+      "permissions": [],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "forensik"
+            }
+          ]
+        }
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/appicon.png",
+        "backgroundImage": "./assets/images/appicon.png",
+        "monochromeImage": "./assets/images/appicon.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "hardwareAccelerated": true,
+      "usesCleartextTraffic": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.redsulphur.forensik",
+      "buildNumber": "1"
+    }
+  }
+}

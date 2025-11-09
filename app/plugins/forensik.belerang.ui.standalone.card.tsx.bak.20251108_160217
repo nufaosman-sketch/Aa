@@ -1,0 +1,265 @@
+// app/plugins/forensik.belerang.ui.standalone.card.tsx
+// LOCKED: KITAB ASAL (Arab + Melayu). Jangan ubah tanpa arahan "buka kunci".
+import React, { useMemo, useState } from "react";
+import { ScrollView, View, Text, TextInput, StyleSheet } from "react-native";
+import Accordion from "../components/Accordion";
+
+/* Abjad Kabir */
+const ABJAD: Record<string, number> = {
+  "ا":1,"ب":2,"ج":3,"د":4,"ه":5,"و":6,"ز":7,"ح":8,"ط":9,
+  "ي":10,"ك":20,"ل":30,"م":40,"ن":50,"س":60,"ع":70,"ف":80,"ص":90,
+  "ق":100,"ر":200,"ش":300,"ت":400,"ث":500,"خ":600,"ذ":700,"ض":800,"ظ":900,"غ":1000,
+  "أ":1,"إ":1,"آ":1,"ة":5,"ى":10,"ؤ":6,"ئ":10,"لا":31
+};
+
+type PlanetKey = "زحل"|"المشتري"|"المريخ"|"الشمس"|"الزهرة"|"عطارد"|"القمر";
+
+/* === KITAB: Peta 1:1 seperti dibekalkan (Arab), + paparan Melayu di UI === */
+const PLANET: Record<PlanetKey, {
+  huruf: string[];
+  sifat?: string; warna?: string; logam?: string;
+  buruj?: string[]; hari?: string; malak?: string;
+  ruhaniyah?: string[]; nota?: string;
+  // Malay labels (derived for display only)
+  sifatMs?: string; warnaMs?: string; logamMs?: string; burujMs?: string[];
+}> = {
+  "الزهرة": {
+    huruf:["ف","ص","ق","ر"],
+    sifat:"رطوبته كثيرة",
+    warna:"الأخضر",
+    logام:"نحاس",
+    buruj:["الميزان","الثور"],
+    ruhaniyah:["الجبهة","الأسعد"],
+    sifatMs:"Lembapnya banyak", warnaMs:"Hijau", logamMs:"Tembaga", burujMs:["Libra","Taurus"]
+  },
+  "الشمس": {
+    huruf:["ه","م","ن","س","ع"],
+    sifat:"حار رطب",
+    warna:"الأصفر",
+    logام:"ذهب",
+    buruj:["الأسد"],
+    hari:"الأحد",
+    malak:"الجبهة",
+    sifatMs:"Panas & lembap", warnaMs:"Kuning", logامMs:"Emas", burujMs:["Asad (Singa)"]
+  },
+  "المريخ": {
+    huruf:["ط","ي","ك","ل"],
+    sifat:"حار يابس",
+    darajah:"لين رطوبة",
+    warna:"الذهب",
+    logام:"ذهب",
+    buruj:["الأسد"],
+    hari:"الأحد",
+    malak:"الجبهة",
+    sifatMs:"Panas & kering", warnaMs:"Keemasan", logامMs:"Emas", burujMs:["Asad (Singa)"]
+  },
+  "المشتري": {
+    huruf:["ه","و","ز","ح"],
+    sifat:"بارد وطلب",
+    darajah:"بارد",
+    warna:"الأبيض",
+    logام:"المقلمي",
+    malak:"إسرافيل",
+    buruj:["الجبهة"],
+    sifatMs:"Sejuk & lunak", warnaMs:"Putih", logامMs:"Timah", burujMs:["Al-Jabhah"]
+  },
+  "زحل": {
+    huruf:["ا","ب","ج","د"],
+    sifat:"بارد يابس",
+    buruj:["الجدي","الدلو"],
+    hari:"السبت",
+    warna:"الأسود",
+    logام:"الرصاص",
+    malak:"ميمون",
+    ruhaniyah:["الحوت"], // sumber asal beri string; kita simpan sebagai array
+    sifatMs:"Sejuk & kering", warnaMs:"Hitam", logامMs:"Plumbum", burujMs:["Jadi (Capricorn)","Dalw (Aquarius)"]
+  },
+  "عطارد": {
+    huruf:["ش","ت","ث","خ"],
+    buruj:["السنبلة"],
+    hari:"الأربعاء",
+    logام:"الزئبق",
+    sifat:"علويه",
+    malak:"عزرائيل",
+    ruhaniyah:["برقان"],
+    sifatMs:"Bersifat ‘uluwi (tinggi/ringan)", logامMs:"Raksa", burujMs:["Sunbulah (Virgo)"]
+  },
+  "القمر": {
+    huruf:["ذ","ض","ظ","غ"],
+    sifat:"بارد رطب",
+    buruj:["السرطان"],
+    hari:"الاثنين",
+    warna:"الفضي",
+    logام:"الفضة",
+    malak:"ميكائيل",
+    ruhانيyah:["الارجا"],
+    nota:"له العلم علويه",
+    sifatMs:"Sejuk & lembap", warnaMs:"Perak", logامMs:"Perak", burujMs:["Sarṭān (Cancer)"]
+  }
+};
+
+const PLANET_HURUF = Object.fromEntries(Object.entries(PLANET).map(([k,v])=>[k, v.huruf])) as Record<PlanetKey,string[]>;
+
+/* Fallback planet/hari mengikut unsur (kitab: api>tanah>udara>air urutan keutamaan) */
+const AUTO = {
+  "Api":   { planets:["الشمس","المريخ"] as PlanetKey[], daysAr:["الأحد","الثلاثاء"],   daysMs:["Ahad","Selasa"] },
+  "Tanah": { planets:["زحل"] as PlanetKey[],            daysAr:["السبت"],               daysMs:["Sabtu"] },
+  "Udara": { planets:["المشتري","عطارد"] as PlanetKey[],daysAr:["الخميس","الأربعاء"],   daysMs:["Khamis","Rabu"] },
+  "Air":   { planets:["القمر","الزهرة"] as PlanetKey[], daysAr:["الاثنين","الجمعة"],    daysMs:["Isnin","Jumaat"] },
+} as const;
+
+/* Media kerja unsur (Bab 7) — ringkas ikut teks */
+const MEDIA: Record<"Api"|"Udara"|"Air"|"Tanah", { ringkas:string; jalbah:string[]; tolak:string[]; }> = {
+  Api: {
+    ringkas:"Api: tulis pada papan/pecahan, sumbu, telur, atau botol.",
+    jalbah:["لوح/شقف (papan/pecahan)","فتيلة (sumbu)","بيضة (telur)","قارورة (botol)"],
+    tolak:["Sama media; niat دفع/إبطال (batal/menolak)."]
+  },
+  Udara: {
+    ringkas:"Udara: digantung di udara / dibawa (diarak).",
+    jalbah:["تعليق مرتفع (gantung tinggi)","حمل في الهواء (diarak/diangkat)"],
+    tolak:["Sama media; niat دفع/إبطال."]
+  },
+  Air: {
+    ringkas:"Air: dilurut/di-siram atau dicampak ke air mengalir.",
+    jalbah:["Larutkan & siram","Campak ke aliran air"],
+    tolak:["Guna air sama lalu dibuang; niat دفع/فسخ."]
+  },
+  Tanah: {
+    ringkas:"Tanah: ditanam di bumi / kubur / bawah laluan / simpang.",
+    jalbah:["دفن في الأرض (tanam)","Letak bawah ambang / simpang jalan"],
+    tolak:["Sama media; niat دفع/إبطال."]
+  },
+};
+
+/* Util — jumlah abjad & pemetaan unsur ikut kitab:
+   “Yang lebih tinggi daripadanya ialah api, kemudian tanah, kemudian udara, kemudian air.”
+   Kami ambil nilai huruf tertinggi dalam nama. */
+function sumAbjad(raw:string){
+  const s=(raw||"").replace(/\s+/g,"");
+  let total=0; const chars:string[]=[];
+  for(let i=0;i<s.length;i++){
+    if(i+1<s.length && s[i]==="ل" && s[i+1]==="ا"){ total+=31; chars.push("لا"); i++; continue; }
+    const ch=s[i]; total+=ABJAD[ch]||0; chars.push(ch);
+  }
+  return { total, chars };
+}
+function unsurGhalib(chars:string[]):"Api"|"Tanah"|"Udara"|"Air"{
+  const vals=chars.map(c=>ABJAD[c]||0);
+  const top=Math.max(0,...vals);
+  if(top>=400) return "Api";
+  if(top>=100) return "Tanah";
+  if(top>=40)  return "Udara";
+  return "Air";
+}
+function planetDominanPertama(chars:string[]):PlanetKey|null{
+  const score:Record<PlanetKey,number>={"زحل":0,"المشتري":0,"المريخ":0,"الشمس":0,"الزهرة":0,"عطارد":0,"القمر":0};
+  for(const ch of chars){
+    (Object.keys(PLANET_HURUF) as PlanetKey[]).forEach(p=>{
+      if(PLANET_HURUF[p].includes(ch)) score[p]++;
+    });
+  }
+  const max=Math.max(...Object.values(score));
+  if(max<=0) return null;
+  // tie-break stabil ikut susunan kitab di atas
+  return (Object.keys(score) as PlanetKey[]).find(p=>score[p]===max) || null;
+}
+
+/* Komponen */
+function Card(){
+  const [nama,setNama]=useState("منير"); // contoh Arabic, bukan placeholder Latin
+
+  const R = useMemo(()=>{
+    const { total, chars } = sumAbjad(nama);
+    const unsur = unsurGhalib(chars);
+    const auto  = AUTO[unsur];
+    const dom   = planetDominanPertama(chars);
+    const planetUtama: PlanetKey = dom ?? auto.planets[0];
+    const hariUtamaMs = auto.daysMs[0];
+    const hariUtamaAr = auto.daysAr[0];
+    return { unsur, total, panjang:chars.length, planetUtama, hariUtamaMs, hariUtamaAr };
+  },[nama]);
+
+  const kerja = MEDIA[R.unsur];
+  const P = PLANET[R.planetUtama];
+
+  const join = (arr?:string[]) => Array.isArray(arr)? arr.join(" ، ") : (arr??"—");
+  const joinMs = (arr?:string[]) => Array.isArray(arr)? arr.join(", ") : (arr??"—");
+
+  return (
+    <ScrollView contentContainerStyle={{padding:12}}>
+      <Text style={st.h1}>Bab 7 — Fokus Nama</Text>
+      <Text style={st.sub}>Auto ikut kitab asal (Arab + Melayu). Semua kad tertutup secara default.</Text>
+
+      <Accordion title="Nama" defaultOpen={false}>
+        <Text style={st.label}>Nama (huruf Arab):</Text>
+        <TextInput value={nama} onChangeText={setNama} style={st.input}/>
+      </Accordion>
+
+      <Accordion title="Keputusan" defaultOpen={false}>
+        <View style={st.card}>
+          <Text style={st.line}>Unsur ghalib: <Text style={st.hi}>{R.unsur}</Text></Text>
+          <Text style={st.line}>Hari utama (fallback unsur): <Text style={st.hi}>{R.hariUtamaMs}</Text> <Text style={st.dim}>({R.hariUtamaAr})</Text></Text>
+          <Text style={st.line}>Planet utama: <Text style={st.hi}>{R.planetUtama}</Text></Text>
+          <Text style={st.dim}>Huruf={R.panjang} • Jumlah abjad={R.total}</Text>
+        </View>
+      </Accordion>
+
+      <Accordion title="Kerja Unsur (berdasar nama)" defaultOpen={false}>
+        <View style={st.card}>
+          <Text style={st.refTitle}>{R.unsur}</Text>
+          <Text style={st.refLine}>{kerja.ringkas}</Text>
+          <Text style={st.titleSmall}>Jalbah (جلب):</Text>
+          {kerja.jalbah.map((t,i)=>(<Text key={i} style={st.bullet}>• {t}</Text>))}
+          <Text style={st.titleSmall}>Tolak / Batal (طرد/إبطال):</Text>
+          {kerja.tolak.map((t,i)=>(<Text key={i} style={st.bullet}>• {t}</Text>))}
+          <Text style={st.tip}>Waktu elok: selepas Subuh, ketika zawāl, selepas Asar & tengah malam — ikut hari utama.</Text>
+        </View>
+      </Accordion>
+
+      <Accordion title="Butiran Planet Utama (Arab + Melayu)" defaultOpen={false} rightLabel={R.planetUtama}>
+        <View style={st.card}>
+          <Text style={st.refLine}>Huruf: <Text style={st.hi}>{join(PLANET_HURUF[R.planetUtama])}</Text></Text>
+
+          {P.sifat && <Text style={st.refLine}>سِفَات: <Text style={st.hi}>{P.sifat}</Text> <Text style={st.sep}>|</Text> Sifat: <Text style={st.hi}>{P.sifatMs||"—"}</Text></Text>}
+          {P.warna && <Text style={st.refLine}>لَوْن: <Text style={st.hi}>{P.warna}</Text> <Text style={st.sep}>|</Text> Warna: <Text style={st.hi}>{P.warnaMs||"—"}</Text></Text>}
+          {P.logام && <Text style={st.refLine}>مَعْدِن: <Text style={st.hi}>{P.logام}</Text> <Text style={st.sep}>|</Text> Logam: <Text style={st.hi}>{P.logامMs||"—"}</Text></Text>}
+          {P.buruj && <Text style={st.refLine}>بُرُوج: <Text style={st.hi}>{join(P.buruj)}</Text> <Text style={st.sep}>|</Text> Buruj: <Text style={st.hi}>{joinMs(P.burujMs)}</Text></Text>}
+          {P.hari &&  <Text style={st.refLine}>يَوْم: <Text style={st.hi}>{P.hari}</Text> <Text style={st.sep}>|</Text> Hari: <Text style={st.hi}>
+            {P.hari==="الأحد"?"Ahad":P.hari==="الاثنين"?"Isnin":P.hari==="الثلاثاء"?"Selasa":P.hari==="الأربعاء"?"Rabu":P.hari==="الخميس"?"Khamis":P.hari==="الجمعة"?"Jumaat":P.hari==="السبت"?"Sabtu":"—"}
+          </Text></Text>}
+          {P.malak && <Text style={st.refLine}>مَلَك/رُوح: <Text style={st.hi}>{P.malak}</Text></Text>}
+          {P.ruhaniyah && <Text style={st.refLine}>رُحَانِيَّات: <Text style={st.hi}>{join(P.ruhaniyah)}</Text></Text>}
+          {P.nota && <Text style={st.refNote}>Nota: {P.nota}</Text>}
+        </View>
+      </Accordion>
+    </ScrollView>
+  );
+}
+
+/* Styles */
+const st = StyleSheet.create({
+  h1:{ color:"#e8e6e3", fontSize:18, fontWeight:"900" },
+  sub:{ color:"#9a9692", marginTop:4, marginBottom:8 },
+  label:{ color:"#e8e6e3", fontWeight:"800" },
+  input:{ color:"#e8e6e3", borderWidth:1, borderColor:"#333", borderRadius:8, padding:10, marginTop:6 },
+  card:{ borderWidth:1, borderColor:"#333", borderRadius:12, padding:12, gap:6 },
+  line:{ color:"#e8e6e3", marginVertical:2 },
+  hi:{ color:"#7bd88f", fontWeight:"800" },
+  dim:{ color:"#b3aca7" },
+  refTitle:{ color:"#e8e6e3", fontWeight:"900", marginBottom:4 },
+  refLine:{ color:"#e8e6e3", marginBottom:4 },
+  refNote:{ color:"#9a9692", fontStyle:"italic", marginTop:4 },
+  bullet:{ color:"#e8e6e3", marginLeft:6, marginTop:2 },
+  titleSmall:{ color:"#e8e6e3", fontWeight:"900", marginTop:8, marginBottom:2 },
+  tip:{ color:"#9a9692", marginTop:6, fontStyle:"italic" },
+  sep:{ color:"#6a6560", marginHorizontal:6 }
+});
+
+/* Adapter export — KEKAL */
+const ForensikBab7Standalone = {
+  id: "forensik-bab7-standalone",
+  label: "Bab 7 — Fokus Nama",
+  render: Card,
+};
+export default ForensikBab7Standalone;
